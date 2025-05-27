@@ -1,2 +1,6 @@
 pruebas.py
 pruebas.ipynb
+dist/
+.pypirc
+.egg-info/
+__pycache__/

@@ -292,7 +292,7 @@ if __name__ == "__main__":
         Poisson,
         Uniform,
         Exponential,
-        Norm,
+        Normal,
         Weibull,
     )
 else:
@@ -304,6 +304,6 @@ else:
         Poisson,
         Uniform,
         Exponential,
-        Norm,
+        Normal,
         Weibull,
     )

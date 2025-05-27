@@ -23,12 +23,22 @@ from sympy import (
     Min,
     binomial,
     gamma,
-    beta,
     log,
     uppergamma,
     erf,
     Piecewise,
+    floor,
+    Contains,
+    FiniteSet,
+    Naturals,
+    Interval,
+    Range,
 )
+from sympy.stats import Normal as Norm
+from sympy.stats import E
+
+from sympy import beta as beta_func
+
 from sympy import oo
 from sympy import pprint
 import sympy
@@ -42,7 +52,8 @@ from IPython.display import display, Math
 
 class Bernulli:
     def __init__(self):
-        self.p, self.x = symbols("p x")
+        self.p = symbols("theta", real=True, positive=True)
+        self.x = symbols("x", integer=True, nonnegative=True)
         self._mode = "Discrete"
         self.t = symbols("t")
         self._support = {0, 1}
@@ -50,8 +61,14 @@ class Bernulli:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Bernoulli distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x,FiniteSet(0,1)))} \\[6pt]
+        \text{{Parameters support:}} \quad {latex(Contains(self.p, Interval(0,1)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PMF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -73,23 +90,40 @@ class Bernulli:
     def get_name(self) -> str:
         return "Bernoulli"
 
-    def fp(self):
+    def PMF(self):
         return pow(self.p, self.x) * pow(1 - self.p, 1 - self.x)
-
-    def replace(self, parameters, fuction: str = "fp"):
-        if parameters["p"] < 0 or parameters["p"] > 1:
-            raise ValueError("p must be between 0 and 1")
-        if fuction == "fp":
-            return self.fp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
 
     def FGM(self):
         return self.p * exp(self.t) + 1 - self.p
+
+    def CDF(self):
+        return (summation(self.PMF(), (self.x, 0, floor(self.x)))).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PMF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PMF"):
+        if parameters["p"] < 0 or parameters["p"] > 1:
+            raise ValueError("p must be between 0 and 1")
+
+        parameters = {self.p: parameters["p"]}
+
+        functions_ = {
+            "PMF": self.PMF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(parameters)
+        else:
+            raise ValueError(
+                "Invalid function type. Choose from 'PMF', 'CDF', 'SF', or 'HF'."
+            )
 
     def calculate_moments(self, n: int):
         if n < 1:
@@ -100,7 +134,9 @@ class Bernulli:
 
 class Binomial:
     def __init__(self):
-        self.p, self.x, self.n = symbols("p x n")
+        self.p = symbols("theta")
+        self.x = symbols("x")
+        self.n = symbols("n")
         self.t = symbols("t")
         self._mode = "Discrete"
         self._support = None
@@ -108,8 +144,16 @@ class Binomial:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Binomial distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x,Range(0,self.n)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(self.p, Interval(0,1)))} \\[6pt]
+        \quad {latex(Contains(self.n,Naturals))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PMF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -127,29 +171,45 @@ class Binomial:
     def get_name(self) -> str:
         return "Binomial"
 
-    def fp(self):
+    def PMF(self):
         return (
             (binomial(self.n, self.x))
             * pow(self.p, self.x)
             * pow(1 - self.p, self.n - self.x)
         )
 
-    def replace(self, parameters, fuction: str = "fp"):
-        if parameters["p"] < 0 or parameters["p"] > 1:
-            raise ValueError("p must be between 0 and 1")
-        if parameters["n"] <= 0:
-            raise ValueError("n must be greater than 0")
-        if fuction == "fp":
-            return self.fp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
         return pow(((self.p * exp(self.t)) + 1 - self.p), self.n)
+
+    def CDF(self):
+        return (summation(self.PMF(), (self.x, 0, floor(self.x)))).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PMF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PMF"):
+        if "p" in parameters:
+            if parameters["p"] < 0 or parameters["p"] > 1:
+                raise ValueError("p must be between 0 and 1")
+            parameters["theta"] = parameters.pop("p")
+        if "n" in parameters:
+            if parameters["n"] <= 0:
+                raise ValueError("n must be greater than 0")
+
+        functions_ = {
+            "PMF": self.PMF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int):
         if n < 1:
@@ -160,15 +220,23 @@ class Binomial:
 class Geometric:
     def __init__(self):
 
-        self.p, self.x = symbols("p x")
+        self.p = symbols("theta", real=True, positive=True)
+        self.x = symbols("x", integer=True, nonnegative=True)
         self.t = symbols("t")
         self._mode = "Discrete"
 
     def __call__(self, *args, **kwds):
+        Nplus = symbols(r"\mathbb{N}^{+}", real=True)
         expr = rf"""
         \textbf{{\Large Geometric distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PMF())} \\[6pt]
+        \text{{Support:}} \quad {latex(self.x)} \in \mathbb{{N}}^+ \\[6pt]
+        \text{{Parameters support:}} \quad {latex(Contains(self.p, Interval(0,1)))} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -186,27 +254,39 @@ class Geometric:
     def get_name(self) -> str:
         return "Geometric"
 
-    def fp(self):
+    def PMF(self):
         return pow(1 - self.p, self.x - 1) * self.p
+
+    def FGM(self):
+        return (self.p * exp(self.t)) / (1 - (1 - self.p) * exp(self.t))
+
+    def CDF(self):
+        return (summation(self.PMF(), (self.x, 1, floor(self.x)))).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PMF() / self.SF()).simplify()
 
     def replace(
         self,
         parameters,
-        fuction: str = "fp",
+        function: str = "PMF",
     ):
         if parameters["p"] < 0 or parameters["p"] > 1:
             raise ValueError("p must be between 0 and 1")
-        if fuction == "fp":
-            return self.fp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
+        funcionts_ = {
+            "PMF": self.PMF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in funcionts_:
+            return funcionts_[function.upper()]().subs(parameters)
         else:
             raise ValueError("Invalid function type")
-
-    def FGM(self):
-        return (self.p * exp(self.t)) / (1 - (1 - self.p) * exp(self.t))
 
     def calculate_moments(self, n: int):
         if n < 1:
@@ -216,15 +296,27 @@ class Geometric:
 
 class HyperGeometric:
     def __init__(self):
-        self.N, self.n, self.K, self.x = symbols("N n K x")
+        self.n = symbols("n")
+        self.K = symbols("K")
+        self.N = symbols("N")
+        self.x = symbols("x")
         self.t = symbols("t")
         self._mode = "Discrete"
 
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large HyperGeometric distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Range(Max(0, self.n - (self.N - self.K)), Min(self.n, self.K))))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(self.n, Naturals))} \\[6pt]
+        \quad {latex(Contains(self.K, Range(0, self.N)))} \\[6pt]
+        \quad {latex(Contains(self.n, Range(0, self.N)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PMF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(UnevaluatedExpr(self.n * self.K / self.N))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.n * self.K / self.N) * ((self.N - self.K) / self.N) * ((self.N - self.n) / (self.N - 1)))}
         """
@@ -242,33 +334,61 @@ class HyperGeometric:
     def get_name(self) -> str:
         return "Hypergeometric"
 
-    def fp(self):
+    def PMF(self):
         return (
             binomial(self.K, self.x) * binomial(self.N - self.K, self.n - self.x)
         ) / (binomial(self.N, self.n))
 
-    def replace(self, parameters, fuction: str = "fp"):
-        if parameters["N"] < 0:
-            raise ValueError("N must be greater than 0")
-        if parameters["n"] < 0:
-            raise ValueError("n must be greater than 0")
-        if parameters["n"] > parameters["N"]:
-            raise ValueError("n must be less than N")
-        if fuction == "fp":
-            return self.fp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
-        print("warning: It does not have a simple closed-form expression.")
+        warnings.warn("It does not have a simple closed-form expression.")
         return summation(
-            exp(self.t * self.x) * self.fp(),
+            exp(self.t * self.x) * self.PMF(),
             (self.x, Max(0, self.n - (self.N - self.K)), Min(self.n, self.K)),
         )
+
+    def CDF(self):
+        return (summation(self.PMF(), (self.x, 0, floor(self.x)))).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PMF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PMF"):
+        have_N = False
+        if "N" in parameters:
+            have_N = True
+            if not isinstance(parameters["N"], int) or parameters["N"] < 1:
+                raise ValueError("N must be and integer greater than or equal to 1")
+
+        if "K" in parameters:
+            if not have_N:
+                raise ValueError("K must be defined only after N is defined")
+            if not isinstance(parameters["K"], int) or parameters["K"] < 0:
+                raise ValueError("K must be an integer greater than or equal to 0")
+            if parameters["K"] > parameters["N"]:
+                raise ValueError("K must be less than or equal to N")
+
+        if "n" in parameters:
+            if not have_N:
+                raise ValueError("n must be defined only after N is defined")
+            if not isinstance(parameters["n"], int) or parameters["n"] < 0:
+                raise ValueError("K must be an integer greater than or equal to 0")
+            if parameters["n"] > parameters["N"]:
+                raise ValueError("n must be less than or equal to N")
+
+        functions_ = {
+            "PMF": self.PMF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int):
         if n < 1:
@@ -278,14 +398,21 @@ class HyperGeometric:
 
 class Poisson:
     def __init__(self):
-        self.l, self.x = symbols("l x")
+        self.l = symbols("lambda")
+        self.x = symbols("x")
         self._mode = "Discrete"
         self.t = symbols("t")
 
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Poisson distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.l, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \quad {latex(Contains(self.l, Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PMF())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
@@ -304,23 +431,38 @@ class Poisson:
     def get_name(self) -> str:
         return "Poisson"
 
-    def fp(self):
+    def PMF(self):
         return pow(self.l, self.x) * exp(-self.l) / factorial(self.x)
-
-    def replace(self, parameters, fuction: str = "fp"):
-        if parameters["l"] < 0:
-            raise ValueError("l must be greater than 0")
-        if fuction == "fp":
-            return self.fp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
 
     def FGM(self):
         return exp(self.l * (exp(self.t) - 1))
+
+    def CDF(self):
+        return (summation(self.PMF(), (self.x, 0, floor(self.x)))).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PMF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PMF"):
+        if parameters["l"] < 0:
+            raise ValueError("l must be greater than 0")
+
+        parameters["lambda"] = parameters.pop("l")
+
+        functions_ = {
+            "PMF": self.PMF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int):
         if n < 1:
@@ -338,8 +480,16 @@ class Uniform:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Uniform distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(self.a, self.b)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(self.a, sympy.Reals))} \\[6pt]
+        \quad {latex(Contains(self.b, sympy.Reals))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1).factor())} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).factor())}
         """
@@ -357,44 +507,57 @@ class Uniform:
     def get_name(self) -> str:
         return "Uniform"
 
-    def fdp(self):
+    def PDF(self):
         return 1 / (self.b - self.a)
-
-    def replace(self, parameters, fuction: str = "fdp"):
-        if parameters["a"] >= parameters["b"]:
-            raise ValueError("a must be less than b")
-        if fuction == "fdp":
-            return self.fdp().subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
 
     def FGM(self):
         return (exp(self.t * self.b) - exp(self.t * self.a)) / (
             self.t * (self.b - self.a)
         )
 
+    def CDF(self):
+        return integrate(self.PDF(), (self.t, self.a, self.x)).simplify()
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        if "a" in parameters:
+            if "b" not in parameters:
+                raise ValueError("b must be defined only after a is defined")
+            if parameters["a"] >= parameters["b"]:
+                raise ValueError("a must be less than b")
+        functions_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
+
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, self.a, self.b))
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, self.a, self.b))
         elif mode == "diff":
             E = limit(diff(self.FGM(), self.t, n).simplify(), self.t, 0)
         return E.simplify()
 
 
 class Exponential:
-    def __init__(self, l: Optional[float] = None):
-        if l is not None:
-            self.l = l
+    def __init__(self):
 
-        else:
-            self.l = symbols("l", real=True, positive=True)
-            self.l_dummy = symbols("l")
+        self.l = symbols("lambda", real=True, positive=True)
+        self.l_dummy = symbols("l")
         self.x = symbols("x")
         self.t = symbols("t", positive=True)
 
@@ -403,8 +566,14 @@ class Exponential:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Exponential distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \quad {latex(Contains(symbols("lambda"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -422,35 +591,51 @@ class Exponential:
     def get_name(self) -> str:
         return "Exponential"
 
-    def fdp(self):
+    def PDF(self):
         return self.l * exp(-self.l * self.x)
+
+    def FGM(self):
+        return self.l / (self.l - self.t)
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return exp(-self.l * self.x)
+
+    def HF(self):
+        return self.PDF() / self.SF()
 
     def replace(
         self,
         parameters,
-        change_l: Optional[bool] = False,
-        erase_l: Optional[bool] = False,
-        fuction: str = "fdp",
+        function: str = "PDF",
     ):
         if parameters["l"] < 0:
             raise ValueError("l must be greater than 0")
-        if fuction == "fdp":
-            return self.fdp().subs(self.l, self.l_dummy).subs(parameters)
-        elif fuction == "fda":
-            return self.fda().subs(self.l, self.l_dummy).subs(parameters)
-        elif fuction == "fgm":
-            return self.FGM().subs(self.l, self.l_dummy).subs(parameters)
+
+        function_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+
+        if function.upper() in function_:
+            return (
+                function_[function.upper()]()
+                .subs({self.l: self.l_dummy})
+                .subs(parameters)
+            )
         else:
             raise ValueError("Invalid function type")
-
-    def FGM(self):
-        return self.l / (self.l - self.t)
 
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, 0, oo)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
@@ -458,12 +643,12 @@ class Exponential:
         return E.simplify()
 
 
-class Norm:
+class Normal:
     def __init__(self):
         self.x = symbols("x")
-        self.v = symbols("v", real=True, positive=True)
+        self.v = symbols("sigma^2", real=True, positive=True)
         self.v_dummy = symbols("v")
-        self.m = symbols("m", real=True)
+        self.m = symbols("mu", real=True)
         self.m_dummy = symbols("m")
         self.t = symbols("t")
         self._mode = "Continuous"
@@ -471,8 +656,16 @@ class Norm:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Normal distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, sympy.Reals))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("mu"), sympy.Reals))} \\[6pt]
+        \quad {latex(Contains(symbols("sigma^2"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -490,43 +683,50 @@ class Norm:
     def get_name(self) -> str:
         return "Normal"
 
-    def fdp(self):
+    def PDF(self):
         return (1 / sqrt(2 * pi * self.v)) * exp(
             (-((self.x - self.m) ** 2)) / (2 * (self.v))
         )
 
-    def replace(self, parameters, fuction: str = "fdp"):
-        if parameters["v"] < 0:
-            raise ValueError("v must be greater than 0")
-        if fuction == "fdp":
+    def FGM(self):
+        return exp(self.m * self.t + 0.5 * (self.v) * (self.t**2))
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, -oo, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        if "v" in parameters:
+            if parameters["v"] < 0:
+                raise ValueError("v must be greater than 0")
+
+        functions_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+
+        if function.upper() in functions_:
             return (
-                self.fdp()
-                .subs({self.m: self.m_dummy, self.v: self.v_dummy})
-                .subs(parameters)
-            )
-        elif fuction == "fda":
-            return (
-                self.fda()
-                .subs({self.m: self.m_dummy, self.v: self.v_dummy})
-                .subs(parameters)
-            )
-        elif fuction == "fgm":
-            return (
-                self.FGM()
-                .subs({self.m: self.m_dummy, self.v: self.v_dummy})
+                functions_[function.upper()]()
+                .subs({self.v: self.v_dummy, self.m: self.m_dummy})
                 .subs(parameters)
             )
         else:
             raise ValueError("Invalid function type")
 
-    def FGM(self):
-        return exp(self.m * self.t + 0.5 * (self.v) * (self.t**2))
-
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, -oo, oo)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, -oo, oo)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
@@ -536,7 +736,7 @@ class Norm:
 
 class Weibull:
     def __init__(self):
-        self.b, self.a = symbols("b a", real=True, positive=True)
+        self.b, self.a = symbols("beta alpha", real=True, positive=True)
         self.b_dummy = symbols("b")
         self.a_dummy = symbols("a")
         self.x = symbols("x")
@@ -544,12 +744,16 @@ class Weibull:
         self._mode = "Continuous"
 
     def __call__(self, *args, **kwds):
+
         expr = rf"""
         \textbf{{\Large Weibull distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
-        \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
-        \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
-        \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).factor())}
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("alpha"), Interval(0, oo)))} \\[6pt]
+        \quad {latex(Contains(symbols("beta"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
+        \text{{\tiny To view the PDF, CDF, SF, HF, or the moments, please use the corresponding function separately.}} \\[3pt]
         """
         display(Math(expr))
 
@@ -565,7 +769,7 @@ class Weibull:
     def get_name(self) -> str:
         return "Weibull"
 
-    def fdp(self):
+    def PDF(self):
         return (
             self.b
             * self.a
@@ -573,40 +777,45 @@ class Weibull:
             * exp(-((self.b * self.x) ** self.a))
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["b"] < 0:
-            raise ValueError("b must be greater than 0")
-        if parameters["a"] < 0:
-            raise ValueError("a must be greater than 0")
+    def FGM(self):
+        integral_expr = integrate(exp(self.t * self.x) * self.PDF(), (self.x, 0, oo))
+        return integral_expr.simplify()
 
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "b" in parameters:
+            if parameters["b"] < 0:
+                raise ValueError("b must be greater than or equal to 0")
+            params[self.b] = self.b_dummy
+        if "a" in parameters:
+            if parameters["a"] < 0:
+                raise ValueError("a must be greater than or equal to 0")
+            params[self.a] = self.a_dummy
+
+        function_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in function_:
+            return function_[function.upper()]().subs(params).subs(parameters)
         else:
             raise ValueError("Invalid function type")
 
-    def FGM(self):
-        integral_expr = integrate(exp(self.t * self.x) * self.fdp(), (self.x, 0, oo))
-        return integral_expr.simplify()
-
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, 0, oo)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
@@ -616,7 +825,7 @@ class Weibull:
 
 class Gamma:
     def __init__(self):
-        self.a, self.b = symbols("a b", real=True, positive=True)
+        self.a, self.b = symbols("alpha beta", real=True, positive=True)
         self.a_dummy = symbols("a")
         self.b_dummy = symbols("b")
         self.x = symbols("x")
@@ -626,54 +835,68 @@ class Gamma:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Gamma distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("alpha"), Interval(0, oo)))} \\[6pt]
+        \quad {latex(Contains(symbols("beta"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
         display(Math(expr))
 
-    def fdp(self):
+    def PDF(self):
         return (
             (self.b**self.a / gamma(self.a))
             * self.x ** (self.a - 1)
             * exp(-self.b * self.x)
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["a"] < 0:
-            raise ValueError("a must be greater than 0")
-        if parameters["b"] < 0:
-            raise ValueError("b must be greater than 0")
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
         return (self.b / (self.b - self.t)) ** self.a
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "a" in parameters:
+            if parameters["a"] < 0:
+                raise ValueError("a must be greater than 0")
+            params[self.a] = self.a_dummy
+        if "b" in parameters:
+            if parameters["b"] < 0:
+                raise ValueError("b must be greater than 0")
+            params[self.b] = self.b_dummy
+
+        function_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in function_:
+            return function_[function.upper()]().subs(params).subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, 0, oo)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
@@ -693,59 +916,76 @@ class Beta:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Beta distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, 1)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("alpha"), Interval(0, oo)))} \\[6pt]
+        \quad {latex(Contains(symbols("beta"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).factor())}
         """
         display(Math(expr))
 
-    def fdp(self):
+    def PDF(self):
         return (
-            (1 / beta(self.a, self.b))
+            (1 / beta_func(self.a, self.b))
             * (self.x ** (self.a - 1))
             * ((1 - self.x) ** (self.b - 1))
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["a"] < 0:
-            raise ValueError("a must be greater than 0")
-        if parameters["b"] < 0:
-            raise ValueError("b must be greater than 0")
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
-        print(
-            "warning: It does not have a simple closed-form expression. Then using the explicit form"
+        warnings.warn(
+            "It does not have a simple closed-form expression. Then using the explicit form"
         )
+
         return (gamma(self.a + self.r) * gamma(self.a + self.b)) / (
             gamma(self.a) * gamma(self.a + self.b + self.r)
         )
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "a" in parameters:
+            if parameters["a"] < 0:
+                raise ValueError("a must be greater than 0")
+        if "b" in parameters:
+            if parameters["b"] < 0:
+                raise ValueError("b must be greater than 0")
+        functions_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return (
+                functions_[function.upper()]()
+                .subs({self.a: self.a_dummy, self.b: self.b_dummy})
+                .subs(parameters)
+            )
+
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int, mode: str = "diff"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, 1)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, 0, 1)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
@@ -755,18 +995,27 @@ class Beta:
 
 class LogNormal:
     def __init__(self):
-        self.m, self.v = symbols("m v", real=True)
+        self.m, self.v = symbols("mu sigma^2", real=True)
         self.m_dummy = symbols("m")
         self.v_dummy = symbols("v")
         self.x = symbols("x")
         self.t = symbols("t")
+        self.r = symbols("r")
         self._mode = "Continuous"
 
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Log-Normal distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("mu"), sympy.Reals))} \\[6pt]
+        \quad {latex(Contains(symbols("sigma^2"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -784,49 +1033,57 @@ class LogNormal:
     def get_name(self) -> str:
         return "LogNormal"
 
-    def fdp(self):
+    def PDF(self):
         return (1 / (self.x * sqrt(2 * pi * self.v))) * exp(
             -((log(self.x) - self.m) ** 2) / (2 * self.v)
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["sigma"] < 0:
-            raise ValueError("sigma must be greater than 0")
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs({self.m: self.v_dummy, self.v: self.v_dummy})
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs({self.m: self.v_dummy, self.v: self.v_dummy})
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs({self.m: self.m_dummy, self.v: self.v_dummy})
-                .subs(parameters)
-            )
+    def FGM(self):
+        warnings.warn(
+            "It does not have a simple closed-form expression. Then using the explicit form"
+        )
+        return exp(self.r * self.m + ((self.r**2 * self.v) / (2)))
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "v" in parameters:
+            if parameters["v"] < 0:
+                raise ValueError("v must be greater than 0")
+            params[self.v] = self.v_dummy
+        if "m" in parameters:
+            params[self.m] = self.m_dummy
+        functions_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(params).subs(parameters)
         else:
             raise ValueError("Invalid function type")
-
-    def FGM(self):
-        print("warning: It does not have a simple closed-form expression.")
-        return exp(self.t * self.m + 0.5 * self.t**2 * self.v)
 
     def calculate_moments(self, n: int):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
-
-        return self.FGM().subs(self.t, n).simplify()
+        return self.FGM().subs(self.r, n).simplify()
 
 
 class Gumbel:
     def __init__(self):
-        self.m, self.b = symbols("m", real=True), symbols("b", real=True, positive=True)
+        self.m, self.b = symbols("mu", real=True), symbols(
+            "beta", real=True, positive=True
+        )
         self.m_dummy = symbols("m")
         self.b_dummy = symbols("b")
         self.x = symbols("x")
@@ -836,8 +1093,16 @@ class Gumbel:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Gumbel distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, sympy.Reals))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(self.m, sympy.Reals))} \\[6pt]
+        \quad {latex(Contains(self.b, Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -855,39 +1120,45 @@ class Gumbel:
     def get_name(self) -> str:
         return "Gumbel"
 
-    def fdp(self):
+    def PDF(self):
         return (
             (1 / self.b)
             * exp((self.x - self.m) / self.b)
             * exp(-exp((self.x - self.m) / self.b))
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["b"] < 0:
-            raise ValueError("b must be greater than 0")
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs({self.m: self.m_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs({self.m: self.m_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs({self.m: self.m_dummy, self.b: self.b_dummy})
-                .subs(parameters)
-            )
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
         return gamma(1 - self.b * self.t) * exp(self.m * self.t)
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, -oo, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "b" in parameters:
+            if parameters["b"] < 0:
+                raise ValueError("b must be greater than 0")
+            params[self.b] = self.b_dummy
+        if "m" in parameters:
+            params[self.m] = self.m_dummy
+
+        function_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in function_:
+            return function_[function.upper()]().subs(params).subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int, mode: str = "diff"):
         if n < 1:
@@ -1066,19 +1337,27 @@ class Pareto:
 
 class Birnbaum_Saunders:
     def __init__(self):
-        self.m, self.a, self.b = symbols("m a b ", real=True)
-        self.m_dummy = symbols("m")
+        self.a, self.b = symbols("alpha beta", real=True, positive=True)
         self.a_dummy = symbols("a")
         self.b_dummy = symbols("b")
         self.x = symbols("x")
         self.t = symbols("t")
+        self.r = symbols("r")
         self._mode = "Continuous"
 
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Birnbaum-Saunders distribution}} \\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
-        \text{{Generating function moment:}} \quad {latex(self.FGM())} \text{{"Siendo Phi:"}} \quad {latex(self.Phi)} \\[6pt]
+        \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+        \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+        \text{{Parameters support:}} \\[6pt]
+        \quad {latex(Contains(symbols("alpha"), Interval(0, oo)))} \\[6pt]
+        \quad {latex(Contains(symbols("beta"), Interval(0, oo)))} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
+        \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+        \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+        \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
         """
@@ -1096,65 +1375,61 @@ class Birnbaum_Saunders:
     def get_name(self) -> str:
         return "Birnbaum-Saunders"
 
-    def fdp(self):
+    def PDF(self):
         return (
-            (1 / (2 * self.a * self.x * sqrt(2 * pi)))
-            * (sqrt(self.b / self.x) + sqrt(self.x / self.b))
+            (1 / sqrt(2 * pi))
             * exp(
-                -(1 / (2 * self.a**2))
-                * (sqrt(self.x / self.b) - sqrt(self.b / self.x)) ** 2
+                (-1 / 2)
+                * (1 / self.a * (sqrt(self.x / self.b) - sqrt(self.b / self.x)) ** 2)
             )
+            * ((pow(self.x, -3 / 2) * (self.x + self.b)) / (2 * self.a * sqrt(self.b)))
         )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["a"] < 0:
-            raise ValueError("a must be greater than 0")
-        if parameters["b"] < 0:
-            raise ValueError("b must be greater than 0")
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs(
-                    {self.m: self.m_dummy, self.a: self.a_dummy, self.b: self.b_dummy}
-                )
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs(
-                    {self.m: self.m_dummy, self.a: self.a_dummy, self.b: self.b_dummy}
-                )
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs(
-                    {self.m: self.m_dummy, self.a: self.a_dummy, self.b: self.b_dummy}
-                )
-                .subs(parameters)
-            )
+    def FGM(self):
+        warnings.warn(
+            "It does not have a simple closed-form expression. Then using the explicit form"
+        )
+        Z = Norm("Z", mean=0, std=1)
+        return self.b * (self.a * Z / 2 + sqrt(1 + (self.a * Z / 2) ** 2)) ** (
+            2 * self.r
+        )
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "a" in parameters:
+            if parameters["a"] < 0:
+                raise ValueError("a must be greater than 0")
+            params[self.a] = self.a_dummy
+        if "b" in parameters:
+            if parameters["b"] < 0:
+                raise ValueError("b must be greater than 0")
+            params[self.b] = self.b_dummy
+
+        functions_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(params).subs(parameters)
         else:
             raise ValueError("Invalid function type")
 
-    def FGM(self):
-        self.Phi = lambda y: (1 + erf(y / sqrt(2))) / 2
-        inside_sqrt = sqrt(1 + (2 * self.a**2 * self.t) / beta)
-        return exp(self.t * beta / 2) * self.Phi((inside_sqrt - 1) / self.a) + exp(
-            -self.t * beta / 2
-        ) * self.Phi(-(inside_sqrt + 1) / self.a)
-
-    def calculate_moments(self, n: int, mode: str = "integrate"):
+    def calculate_moments(self, n: int):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
-        if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)).rewrite(
-                sympy.Piecewise
-            )
-        elif mode == "diff":
-            E = limit(diff(self.FGM(), self.t, n).simplify(), self.t, 0)
-        return E.simplify()
+        return E(self.FGM()).subs(self.r, n).simplify()
 
 
 class Burr:
