@@ -88,7 +88,7 @@ class Bernulli:
 
     @property
     def get_name(self) -> str:
-        return "Bernoulli"
+        return "Bernulli"
 
     def PMF(self):
         return pow(self.p, self.x) * pow(1 - self.p, 1 - self.x)
@@ -284,7 +284,7 @@ class Geometric:
             "FGM": self.FGM,
         }
         if function.upper() in funcionts_:
-            return funcionts_[function.upper()]().subs(parameters)
+            return funcionts_[function.upper()]().subs({self.p: parameters["p"]})
         else:
             raise ValueError("Invalid function type")
 
@@ -332,7 +332,7 @@ class HyperGeometric:
 
     @property
     def get_name(self) -> str:
-        return "Hypergeometric"
+        return "HyperGeometric"
 
     def PMF(self):
         return (
@@ -399,6 +399,7 @@ class HyperGeometric:
 class Poisson:
     def __init__(self):
         self.l = symbols("lambda")
+        self.l_dummy = symbols("l")
         self.x = symbols("x")
         self._mode = "Discrete"
         self.t = symbols("t")
@@ -447,10 +448,9 @@ class Poisson:
         return (self.PMF() / self.SF()).simplify()
 
     def replace(self, parameters, function: str = "PMF"):
-        if parameters["l"] < 0:
-            raise ValueError("l must be greater than 0")
-
-        parameters["lambda"] = parameters.pop("l")
+        if "l" in parameters:
+            if parameters["l"] < 0:
+                raise ValueError("l must be greater than 0")
 
         functions_ = {
             "PMF": self.PMF,
@@ -460,7 +460,11 @@ class Poisson:
             "FGM": self.FGM,
         }
         if function.upper() in functions_:
-            return functions_[function.upper()]().subs(parameters)
+            return (
+                functions_[function.upper()]()
+                .subs({self.l: self.l_dummy})
+                .subs(parameters)
+            )
         else:
             raise ValueError("Invalid function type")
 
@@ -850,6 +854,18 @@ class Gamma:
         """
         display(Math(expr))
 
+    @property
+    def is_fuction(self):
+        return True
+
+    @property
+    def get_mode(self):
+        return self._mode
+
+    @property
+    def get_name(self) -> str:
+        return "Gamma"
+
     def PDF(self):
         return (
             (self.b**self.a / gamma(self.a))
@@ -930,6 +946,18 @@ class Beta:
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).factor())}
         """
         display(Math(expr))
+
+    @property
+    def get_mode(self):
+        return self._mode
+
+    @property
+    def is_fuction(self):
+        return True
+
+    @property
+    def get_name(self) -> str:
+        return "Beta"
 
     def PDF(self):
         return (
@@ -1533,8 +1561,8 @@ class Burr:
 
     def FGM(self):
         self.r = symbols("r")
-        print(
-            "warning: It does not have a simple closed-form expression. Then using the explicit form"
+        warnings.warn(
+            "It does not have a simple closed-form expression. Then using the explicit form"
         )
         if self.type == 1:
             return (
@@ -1600,7 +1628,7 @@ class Lindley:
     def get_name(self) -> str:
         return "Lindley"
 
-    def fdp(self):
+    def PDF(self):
         if self.type == 1:
             return (self.p**2 / (1 + self.p)) * exp(-self.p * self.x) * (1 + self.x)
         elif self.type == 2:
@@ -1610,21 +1638,6 @@ class Lindley:
                 * (self.a + self.y * self.x)
                 * exp(-self.p * self.x)
             ) / ((self.y + self.p) * gamma(self.a + 1))
-
-    def replace(self, parameters, function: str = "fdp"):
-        if parameters["p"] < 0:
-            raise ValueError("p must be greater than 0")
-        if self.type == 3:
-            if parameters["l"] < 0:
-                raise ValueError("l must be greater than 0")
-        if function == "fdp":
-            return self.fdp().subs({self.p: self.p_dummy}).subs(parameters)
-        elif function == "fda":
-            return self.fda().subs({self.p: self.p_dummy}).subs(parameters)
-        elif function == "fgm":
-            return self.FGM().subs({self.p: self.p_dummy}).subs(parameters)
-        else:
-            raise ValueError("Invalid function type")
 
     def FGM(self):
         if self.type == 1:
@@ -1636,6 +1649,36 @@ class Lindley:
                 1 / (self.p - self.t) ** self.a
                 + self.y / (self.p - self.t) ** (self.a + 1)
             )
+
+    def CDF(self):
+        return integrate(self.PDF(), (self.x, 0, self.x)).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "PDF"):
+        params = {}
+        if "p" in parameters:
+            if parameters["p"] < 0:
+                raise ValueError("p must be greater than 0")
+            params[self.p] = self.p_dummy
+        if self.type == 3:
+            if parameters["l"] < 0:
+                raise ValueError("l must be greater than 0")
+        function_ = {
+            "PDF": self.PDF,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+            "FGM": self.FGM,
+        }
+        if function.upper() in function_:
+            return function_[function.upper()]().subs(params).subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
 
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
