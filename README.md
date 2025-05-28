@@ -3,8 +3,8 @@
 A comprehensive Python library for working with probability distributions and statistical functions. This library provides tools for symbolic and numeric manipulation of probability distributions, along with visualization capabilities.
 
 ## ⚠️ Requirements
-> **Warning**  
-> This library is designed to work primarily in Jupyter environments with LaTeX support. Some functionality may not work correctly outside of this environment.
+> **Warning** 
+This library is designed to work primarily in Jupyter environments with LaTeX support. Some functionality may not work correctly outside of this environment.
 
 - Python 3.13+
 - Jupyter Notebook/Lab
@@ -56,7 +56,8 @@ The following distributions are included in the library, but their functionality
 - Laplace
 - Gumbel
 
-> **Note:** Support for these distributions is under development. Some functions may not be fully implemented or may produce unexpected results.
+> **Note:**
+Support for these distributions is under development. Some functions may not be fully implemented or may produce unexpected results.
 
 ## Usage Examples
 
@@ -81,7 +82,7 @@ You can plot multiple parameter combinations by passing lists:
 # Plot multiple Poisson distributions with different lambda values
 from probabilistic_functions.core import Poisson
 poisson = Poisson()
-plot_function(poisson, "pmf", {"lambda": [1, 5, 10]})
+plot_function(poisson, "pmf", {"l": [1, 5, 10]})
 ```
 
 ## Changelog
@@ -90,7 +91,7 @@ For a detailed list of changes between versions, please see the [Changelog](http
 
 ## License
 
-Apache License 2.0
+[Apache License 2.0](https://github.com/WilhelmBuitrago/probabilistic-functions/blob/main/LICENSE)
 
 ## Contributing
 
