@@ -18,4 +18,23 @@
   - The Birnbaum-Saunders distribution may not function correctly
   - The remaining distributions have not been modified since the previous update (Burr types 1 and 2, Pareto types 1, 2, and 6, Lindley, etc)
 
+# 0.5.0
+## 2025-05-28
+  - The function for plotting the distributions was completely changed, updated, and improved.
+  - Notebooks have been added to demonstrate the usage of the library.
+  - There is an unexpected behavior with the cdf, sf, and hf plots of the uniform distribution.
+  - There is an unexpected behavior with the pmf plot of the geometric distribution.
+  - None of the Beta distribution plots are working correctly. 
+  - Only the pmf plot of the lognormal distribution is working correctly.
+  - The Lindley type 1 distribution works correctly.
+  - None of the other distributions have been tested.
+  - The readme.md file has been added to the project.
+
+
+
+
+
+
+
+
 
