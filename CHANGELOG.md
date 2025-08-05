@@ -30,6 +30,11 @@
   - None of the other distributions have been tested.
   - The readme.md file has been added to the project.
 
+# 0.5.1
+## 2025-05-28
+
+  - The Gumbel distribution works correctly.
+
 
 
 

@@ -1124,8 +1124,8 @@ class Gumbel:
         \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
         \text{{Support:}} \quad {latex(Contains(self.x, sympy.Reals))} \\[6pt]
         \text{{Parameters support:}} \\[6pt]
-        \quad {latex(Contains(self.m, sympy.Reals))} \\[6pt]
-        \quad {latex(Contains(self.b, Interval(0, oo)))} \\[6pt]
+        \quad {latex(Contains(symbols("mu"), sympy.Reals))} \\[6pt]
+        \quad {latex(Contains(symbols("beta"), Interval(0, oo)))} \\[6pt]
         \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
         \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
@@ -1224,13 +1224,35 @@ class Pareto:
             raise ValueError("Invalid type. Type must be 1, 2 or 6")
 
     def __call__(self, *args, **kwds):
-        expr = rf"""
-        \textbf{{\Large Pareto distribution}} \quad \textbf{{\Large {self.type}}}\\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
-        \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
-        \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
-        \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
-        """
+        if self.type == 1:
+            expr = rf"""
+            \textbf{{\Large Pareto distribution}} \quad \textbf{{\Large {self.type}}}\\[6pt]
+            \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+            \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
+            \text{{Support:}} \quad {latex(Contains(self.x, Interval(self.x_m, oo)))} \\[6pt]
+            \text{{Parameters support:}} \\[6pt]
+            \quad {latex(Contains(symbols("x_m"), Interval(0, oo)))} \\[6pt]
+            \quad {latex(Contains(symbols("alpha"), Interval(0, oo)))} \\[6pt]
+            \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+            \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+            \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+            \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
+            \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
+            \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
+            """
+        elif self.type == 2:
+            expr = rf"""
+            \textbf{{\Large Pareto distribution}} \quad \textbf{{\Large {self.type}}}\\[6pt]
+            \text{{Distribution mode:}} \quad {self._mode} \\[6pt]
+            \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
+            \text{{Support:}} \quad {latex(Contains(self.x, Interval(0, oo)))} \\[6pt]
+            \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
+            \text{{Cumulative distribution function:}} \quad {latex(self.CDF())} \\[6pt]
+            \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
+            \text{{Hazard function:}} \quad {latex(self.HF())} \\[6pt]
+            \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
+            \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).simplify())}
+            """
         display(Math(expr))
 
     @property
@@ -1245,7 +1267,7 @@ class Pareto:
     def get_name(self) -> str:
         return f"Pareto {self.type}"
 
-    def fdp(self):
+    def PDF(self):
         if self.type == 1:
             return (self.a * self.x_m**self.a) / self.x ** (self.a + 1)
 
@@ -1257,58 +1279,11 @@ class Pareto:
                 -1 / self.y - 1
             )
 
-    def replace(self, parameters, function: str = "fdp"):
-        if self.type == 1:
-            if parameters["x_m"] <= 0:
-                raise ValueError("x_m must be greater than 0")
-            if parameters["a"] <= 0:
-                raise ValueError("a must be greater than 0")
-
-        elif self.type == 2:
-            if parameters["l"] <= 0:
-                raise ValueError("l must be greater than 0")
-            if parameters["a"] <= 0:
-                raise ValueError("a must be greater than 0")
-
-        elif self.type == 6:
-            if parameters["l"] <= 0:
-                raise ValueError("l must be greater than 0")
-            if parameters["y"] <= 0:
-                raise ValueError("y must be greater than 0")
-
-        if function == "fdp":
-            return (
-                self.fdp()
-                .subs(
-                    {self.x: self.x_dummy, self.a: self.a_dummy, self.l: self.l_dummy}
-                )
-                .subs(parameters)
-            )
-        elif function == "fda":
-            return (
-                self.fda()
-                .subs(
-                    {self.x: self.x_dummy, self.a: self.a_dummy, self.l: self.l_dummy}
-                )
-                .subs(parameters)
-            )
-        elif function == "fgm":
-            return (
-                self.FGM()
-                .subs(
-                    {self.x: self.x_dummy, self.a: self.a_dummy, self.l: self.l_dummy}
-                )
-                .subs(parameters)
-            )
-        else:
-            raise ValueError("Invalid function type")
-
     def FGM(self):
+        warnings.warn(
+            "It does not have a simple closed-form expression. Then using the explicit form"
+        )
         if self.type == 1:
-
-            warnings.warn(
-                "It does not have a simple closed-form expression. Then using the explicit form"
-            )
             self.r = symbols("r")
             return (self.a * self.x_m**self.r) / (self.a - self.r)
         elif self.type == 2:
@@ -1324,6 +1299,53 @@ class Pareto:
                 (self.x, 1, self.r),
             )
 
+    def CDF(self):
+        return integrate(
+            self.PDF(), (self.x, self.x_m if self.type == 1 else 0, self.x)
+        ).rewrite(sympy.Piecewise)
+
+    def SF(self):
+        return (1 - self.CDF()).simplify()
+
+    def HF(self):
+        return (self.PDF() / self.SF()).simplify()
+
+    def replace(self, parameters, function: str = "fdp"):
+        params = {}
+        if self.type == 1:
+            if "x_m" in parameters:
+                if parameters["x_m"] <= 0:
+                    raise ValueError("x_m must be greater than 0")
+                params[self.x_m] = self.x_m_dummy
+            if "a" in parameters:
+                if parameters["a"] <= 0:
+                    raise ValueError("a must be greater than 0")
+                params[self.a] = self.a_dummy
+
+        elif self.type == 2:
+            if parameters["l"] <= 0:
+                raise ValueError("l must be greater than 0")
+            if parameters["a"] <= 0:
+                raise ValueError("a must be greater than 0")
+
+        elif self.type == 6:
+            if parameters["l"] <= 0:
+                raise ValueError("l must be greater than 0")
+            if parameters["y"] <= 0:
+                raise ValueError("y must be greater than 0")
+
+        functions_ = {
+            "PDF": self.PDF,
+            "FGM": self.FGM,
+            "CDF": self.CDF,
+            "SF": self.SF,
+            "HF": self.HF,
+        }
+        if function.upper() in functions_:
+            return functions_[function.upper()]().subs(params).subs(parameters)
+        else:
+            raise ValueError("Invalid function type")
+
     def calculate_moments(self, n: int, mode: str = "integrate"):
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
@@ -1331,7 +1353,7 @@ class Pareto:
             if self.type == 1:
                 E = Piecewise(
                     (
-                        integrate(pow(self.x, n) * self.fdp(), (self.x, self.x_m, oo)),
+                        integrate(pow(self.x, n) * self.PDF(), (self.x, self.x_m, oo)),
                         self.a > n,
                     ),
                     (sympy.nan, True),
@@ -1339,7 +1361,7 @@ class Pareto:
             elif self.type == 2 or self.type == 6:
                 E = Piecewise(
                     (
-                        integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)),
+                        integrate(pow(self.x, n) * self.PDF(), (self.x, 0, oo)),
                         self.a > n,
                     ),
                     (sympy.nan, True),
@@ -1609,7 +1631,8 @@ class Lindley:
     def __call__(self, *args, **kwds):
         expr = rf"""
         \textbf{{\Large Lindley distribution}}\\[6pt]
-        \text{{Function probability:}} \quad {latex(self.fdp())} \\[6pt]
+        \text{{Function probability:}} \quad {latex(self.PDF())} \\[6pt]
+        \text{{Survival function:}} \quad {latex(self.SF())} \\[6pt]
         \text{{Generating function moment:}} \quad {latex(self.FGM())} \\[6pt]
         \text{{Expected value:}} \quad {latex(self.calculate_moments(1))} \\[6pt]
         \text{{Variance:}} \quad {latex((self.calculate_moments(2) - self.calculate_moments(1)**2).factor())}
@@ -1684,7 +1707,7 @@ class Lindley:
         if n < 1:
             raise ValueError("n must be greater than or equal to 1")
         if mode == "integrate":
-            E = integrate(pow(self.x, n) * self.fdp(), (self.x, 0, oo)).rewrite(
+            E = integrate(pow(self.x, n) * self.PDF(), (self.x, 0, oo)).rewrite(
                 sympy.Piecewise
             )
         elif mode == "diff":
