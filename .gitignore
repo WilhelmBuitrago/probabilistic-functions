@@ -4,3 +4,6 @@ dist/
 .pypirc
 *.egg-info/
 __pycache__/
+*.png
+/articulo
+actu.xlsx

@@ -34,7 +34,7 @@ def _get_support_hypergeometric(distribution, params_list):
 
 def _get_support_uniform(distribution, params_list):
     """Calculate support for Uniform distribution."""
-    supports = [np.arange(elemt["a"], elemt["b"] + 1) for elemt in params_list]
+    supports = [np.arange(elemt["a"], elemt["b"]) for elemt in params_list]
     return supports[0] if len(supports) == 1 else supports
 
 
@@ -44,7 +44,7 @@ def _get_support_normal(distribution, params_list):
         np.linspace(
             elemt["m"] - math.sqrt(elemt["v"]) * 3,
             elemt["m"] + math.sqrt(elemt["v"]) * 3,
-            70,
+            80,
         )
         for elemt in params_list
     ]
@@ -109,7 +109,7 @@ def _get_support_exponential(distribution, params_list):
                 max_num = i
                 break
             i += 1
-        support_max.append(np.linspace(0, max_num, 60))
+        support_max.append(np.linspace(0, max_num, 80))
 
     if len(support_max) == 1:
         return support_max[0]
@@ -137,48 +137,74 @@ def _get_support_for_distribution(distribution, params_list):
         return _get_support_exponential(distribution, params_list)
     elif dist_name == "Geometric" or dist_name == "Poisson":
         return _get_support_probability_threshold(distribution, params_list)
-    elif dist_name in ["Weibull", "Gamma", "Beta", "LogNormal", "Lindley"]:
+    elif dist_name in [
+        "Weibull",
+        "Gamma",
+        "Beta",
+        "LogNormal",
+        "Lindley 1",
+        "Lindley 2",
+        "Gumbel",
+        "Birnbaum-Saunders",
+    ]:
         return _get_support_continuous_threshold(distribution, params_list)
+    elif dist_name in ["Burr", "Pareto 1", "Pareto 2", "Pareto 9"]:
+        return _get_support_continuous_threshold(distribution, params_list, start=0.1)
 
     # Default case: return a reasonable range
-    return np.linspace(0, 10, 50)
+    return np.linspace(0.1, 10, 50)
 
 
 def _plot_discrete_distribution(
-    plt, support, probs, color=None, params=None, distribution=None, mode=None
+    ax: plt,
+    support: List,
+    probs: List,
+    color=None,
+    params: Dict = None,
+    distribution: str = None,
+    mode: str = None,
 ):
     """Plot a discrete distribution."""
+
     if mode.lower() in ["cdf", "sf", "hf"]:
         for i in range(len(list(support)) - 1):
-            plt.hlines(
+            ax.hlines(
                 y=probs[i],
                 xmin=list(support)[i],
                 xmax=list(support)[i + 1],
-                color=color if color else "r",
+                color=color if color else "b",
                 linestyle="-",
             )
 
-    markerline, _, _ = plt.stem(
+    markerline, stemlines, baseline = plt.stem(
         list(support),
         probs,
-        linefmt="none",
+        linefmt="",
         markerfmt="o",
         basefmt=" ",
-        label=r"$" + latex(distribution) + (f", {params}" if params else "") + r"$",
+        label=(r"$" + latex(distribution) + (f", {params}" if params else "") + r"$"),
     )
+    stemlines.set_visible(False)
+    baseline.set_visible(False)
+
     if color:
         markerline.set_color(color)
 
 
 def _plot_continuous_distribution(
-    plt, support, probs, color=None, params=None, distribution=None
+    plt,
+    support: List,
+    probs: List,
+    color=None,
+    params: Dict = None,
+    distribution: str = None,
 ):
     """Plot a continuous distribution."""
     plt.plot(
         support,
         probs,
         color=color,
-        label=r"$" + latex(distribution) + (f", {params}" if params else "") + r"$",
+        label=(r"$" + latex(distribution) + (f", {params}" if params else "") + r"$"),
     )
 
 
@@ -194,10 +220,11 @@ def plot_function(
         parameters: Dictionary of parameters for the function
         *args, **kwargs: Additional arguments for the plot
     """
-    size = kwargs.get("size", (5, 5))
     legend = kwargs.get("legend", True)
+    size = kwargs.get("size", (5, 5))
     print_ = kwargs.get("debug", False)
     title = kwargs.get("title", True)
+    colors = kwargs.get("colors", plt.cm.tab10.colors)
     distribution = function
 
     # Get all parameter combinations
@@ -207,12 +234,10 @@ def plot_function(
     distribution._support = _get_support_for_distribution(
         distribution, param_combinations
     )
-
     if print_:
         print(f"Support: {distribution._support}")
 
     plt.figure(figsize=size)
-    colors = plt.cm.tab10.colors
 
     # Handle multiple parameter sets
     if len(param_combinations) > 1:
@@ -248,6 +273,9 @@ def plot_function(
     else:
         # Single parameter set
         dis = distribution.replace(param_combinations[0], mode)
+        if print_:
+            print(f"Using parameters: {param_combinations[0]}")
+            print(dis)
         support = distribution._support
         probs = [dis.subs(distribution.x, i).evalf() for i in support]
         if print_:
@@ -272,6 +300,103 @@ def plot_function(
             "hf": "Hazard Function",
         }
         plt.title(f"{t[mode]} of {distribution.get_name} Distribution")
+
+    plt.show()
+
+
+def multi_plot_function(
+    distributions: Dict[Callable, Dict], mode: str, *args, **kwargs
+):
+    """
+    Plot multiple probabilistic functions with given parameters.
+
+    Args:
+        distributions: A dictionary where keys are distribution instances and values are parameter dictionaries
+        mode: Mode of the function
+        *args, **kwargs: Additional arguments for the plot
+    """
+    size = kwargs.get("size", (5, 5))
+    print_ = kwargs.get("debug", False)
+
+    plt.figure(figsize=size)
+    colors = plt.cm.tab10.colors
+
+    for i, (distribution, parameters) in enumerate(distributions.items()):
+        # Get all parameter combinations
+        param_combinations = _get_parameter_combinations(parameters)
+
+        # Get appropriate supports for this distribution
+        distribution._support = _get_support_for_distribution(
+            distribution, param_combinations
+        )
+        if print_:
+            print(f"Support for {distribution.get_name}: {distribution._support}")
+
+        # Handle multiple parameter sets
+        if len(param_combinations) > 1:
+            for j, (params, color, support) in enumerate(
+                zip(
+                    param_combinations,
+                    colors[: len(param_combinations)],
+                    (
+                        distribution._support
+                        if isinstance(distribution._support, list)
+                        else [distribution._support] * len(param_combinations)
+                    ),
+                )
+            ):
+                dis = distribution.replace(params, mode)
+                probs = [dis.subs(distribution.x, k).evalf() for k in support]
+                if print_:
+                    print(f"Parameters: {params}, Probabilities: {probs}")
+                if distribution.get_mode == "Discrete":
+                    _plot_discrete_distribution(
+                        plt,
+                        support,
+                        probs,
+                        color=color,
+                        params=params,
+                        distribution=dis,
+                        mode=mode,
+                    )
+                elif distribution.get_mode == "Continuous":
+                    _plot_continuous_distribution(
+                        plt,
+                        support,
+                        probs,
+                        color=color,
+                        params=params,
+                        distribution=dis,
+                    )
+        else:
+            # Single parameter set
+            dis = distribution.replace(param_combinations[0], mode)
+            if print_:
+                print(f"Using parameters: {param_combinations[0]}")
+                print(dis)
+            support = distribution._support
+            probs = [dis.subs(distribution.x, k).evalf() for k in support]
+            if print_:
+                print(f"Support: {support}, Probabilities: {probs}")
+            if distribution.get_mode == "Discrete":
+                _plot_discrete_distribution(
+                    plt,
+                    support,
+                    probs,
+                    color=colors[i % len(colors)],
+                    params=param_combinations[0],
+                    distribution=dis,
+                    mode=mode,
+                )
+            elif distribution.get_mode == "Continuous":
+                _plot_continuous_distribution(
+                    plt,
+                    support,
+                    probs,
+                    color=colors[i % len(colors)],
+                    params=param_combinations[0],
+                    distribution=dis,
+                )
     plt.show()
 
 

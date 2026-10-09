@@ -35,6 +35,28 @@
 
   - The Gumbel distribution works correctly.
 
+# 0.6.0
+## 2025-09-11
+### New Features
+  - All distributions now include a fit method (using SciPy).
+  - For distributions where it is possible, a closed-form Maximum Likelihood Estimation (MLE) method has been implemented, although numerical methods can also be used.
+  - A complete summary has been added for all distributions.
+  - For all distribution now include a fit method using times-events format.
+  - The 3-parameter Weibull, Nadarajah-Haghighi and Inverse-Weibull distribution has been added.
+  - Has been added a "cure model" using the models base 'CureModel(basemodel)'
+
+### Fixes
+  - The visualization of Uniform distribution plots has been fixed.
+  - The Pareto distributions (Type I, Type II, and Generalized – 9) work correctly, although they are still being tested.
+  - The Burr distribution works correctly.
+  - The visualization of the Geometric distribution works correctly.
+  - The Birnbaum-Saunders distribution works correctly, although it is still being tested.
+
+### Known Issues
+  - The visualization of the Beta distribution will be affected when parameter b is less than or equal to 1.
+  - The multi-visualization of the Birnbaum-Saunders distribution works correctly but may take a long time to compute.
+
+
 
 
 
